@@ -1,178 +1,497 @@
+ルグル：
+·调查一下第一次自由转向有可能不从最近角度开转的bug（优先度低）
+·从开始自由转向开始计时，经过一定时间后不再转向直至飞出屏幕消失
+ 在TurnFree的start里打开RuguruBehavior里的一个开关IsStartTurnFree
+ 在IsStartTurnFree为true情况下可以开始计时
+ 计时超过时开启EndTurnFree开关，以及可走出画面外被删除开关
+ 在TurnFree的update开头写当RuguruBehavior.EndTurnFree为true时返回
+·左右边缘出去之后没有影响，上下边缘出去之后坐标穿墙
+ 可在走出画面外被删除开关为false的情况下，当超出上下边缘时强制位移Y坐标
 
+
+◎ガルン
+两种类型
+一种完全固定路线型（红色）
+一种蛇行追尾型
+☒绕x轴回旋
+
+ジャンパー
+因为是站在地板上所以要常时追加一个与scroll一样的速度
+撞到空气墙会折返（在地面边缘和山边缘创建空气墙）
+x坐标快出屏幕外时折返
+其余时候随机折返（？）
+◎最开始的一波：
+不会跳，间隔很长一段时间发射一颗子弹（自机狙？）
+会跳的：
+跳两次后发射一次子弹，总共三颗，中间那颗朝着自机，
+第二次落地后判断和玩家的左右关系来决定下次朝哪个方向跳
+
+◎ダグム（ガルン生成器）
+最开始的一个：
+生成4个ダグム
+ダグム的动作是垂直往上飞一小段距离，然后往右上飞更小一段距离，然后恢复常态（全都是追尾型）
+
+◎ダグム（ラッシュ生成器）
+生成4个ラッシュ
+ラッシュ的动作是垂直上升直到与玩家Y平行然后向左（较高速）
+
+ディー#01
+固定炮台，每隔一段间隔对着自机发射
+
+ダッカー
+因为是站在地板上所以要常时追加一个与scroll一样的速度
+从画面左边出现
+
+◎蓝色做完
+
+红色：
+从左边走出来（面向忽左忽右），走到画面中央停下，向玩家的左右方向，下（上）45度发射子弹
+待观察。。
+
+
+
+
+ガルン
+public class garun : MonoBehaviour
 {
-{-1,	-1,	-1,	-1,	-1,	1,	-1,	-1,	-1,	-1},
-{-1,	-1,	-1,	-1,	2,	2,	2,	-1,	-1,	-1},
-{-1,	-1,	-1,	3,	3,	3,	3,	3,	-1,	-1},
-{-1,	3,	3,	3,	3,	9,	3,	3,	3,	-1},
-{1,	1,	1,	1,	1,	1,	1,	1,	1,	1},
-},
+    // Start is called before the first frame update
+    public GameObject Player;
 
+    public bool IsRed = false;
+    public bool IsFixed = false;
+
+    public float MoveSpeed = 5.0f;
+
+    private Vector3 MoveDir;
+
+    private float TurnTimeInterval = 0.5f;
+    private float TurnTime = 0.0f;
+
+    private bool IsUp;
+
+    //ダグム関連
+    public bool IsAwayFromDagumu { get; set; }
+    private float UpTimeInterval = 1.0f;
+    private float RightUpTimeInterval = 1.5f;
+    private float AwayTime = 0.0f;
+    
+    void Start()
+    {
+        if(IsFixed)
+        {
+            IsUp = true;
+            MoveDir = new Vector3(-1.0f, 1.0f, 0.0f);
+            MoveDir = Vector3.Normalize(MoveDir);
+        }
+        else
+        {
+            float PlayerPosY = Player.transform.position.y;
+            float GarunPosY = this.transform.position.y;
+
+            IsUp = PlayerPosY > GarunPosY ? true : false;
+        }
+        
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        if(IsAwayFromDagumu)
+        {
+            AwayTime += Time.deltaTime;
+            if (AwayTime < UpTimeInterval)
+            {
+                this.transform.position += new Vector3(0, 0.5f, 0) * Time.deltaTime * MoveSpeed;
+            }
+            else if(AwayTime < RightUpTimeInterval)
+            {
+                this.transform.position += new Vector3(0.5f, 0.5f, 0) * Time.deltaTime * MoveSpeed;
+            }
+            else
+            {
+                IsAwayFromDagumu = false;
+            }
+            return;
+        }
+        // 固定路線
+        if(IsFixed)
+        {
+            TurnTime += Time.deltaTime;
+            if (TurnTime > TurnTimeInterval)
+            {
+                IsUp = IsUp? false : true;
+                TurnTime = 0.0f;
+                //可消除开关打开
+            }
+        }
+
+        // ホーミング
+        else
+        {
+            TurnTime += Time.deltaTime;
+            if (TurnTime > TurnTimeInterval)
+            {
+                float PlayerPosY = Player.transform.position.y;
+                float GarunPosY = this.transform.position.y;
+                IsUp = PlayerPosY > GarunPosY ? true : false;
+
+                TurnTime = 0.0f;
+                //可消除开关打开
+            }
+
+        }
+
+        if(IsUp)
+        {
+            MoveDir = new Vector3(-1.0f, 0.5f, 0.0f);
+        }
+        else
+        {
+            MoveDir = new Vector3(-1.0f, -0.5f, 0.0f);
+        }
+        MoveDir = Vector3.Normalize(MoveDir);
+
+        this.transform.position += MoveDir * Time.deltaTime * MoveSpeed;
+    }
+}
+
+
+ジャンパー
+public class Jumper : MonoBehaviour
 {
-{2,	1,	1,	1,	1,	2,	1,	2,	3,	2},
-{1,	1,	2,	3,	3,	2,	3,	2,	2,	1},
-{2,	3,	2,	2,	3,	1,	1,	2,	3,	1},
-{3,	2,	-1,	3,	1,	1,	3,	3,	2,	3},
-{2,	1,	9,	-1,	2,	1,	2,	2,	2,	3},
-},
+    public float ShootTimeInterval = 5.0f;
+    private float ShootTime = 0.0f;
 
+    public GameObject Player;
+    public GameObject Bullet;
 
+    public bool IsLeft = true;
+
+    private Vector3 MoveDir;
+
+    public float MoveSpeed = 5.0f;
+
+    public bool CanJump = false;
+
+    // Start is called before the first frame update
+    void Start()
+    {
+        
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        ShootTime += Time.deltaTime;
+        if(ShootTime>ShootTimeInterval)
+        {
+            Shoot();
+            ShootTime = 0.0f;
+        }
+
+        MoveDir = IsLeft ? new Vector3(-1, 0, 0) : new Vector3(1, 0, 0);
+
+        this.transform.position += MoveDir * Time.deltaTime * MoveSpeed;
+    }
+
+    private void Shoot()
+    {
+        Vector3 PlayerPos = Player.transform.position;
+        Vector3 JumperPos = this.transform.position;
+
+        Vector3 dir = PlayerPos - JumperPos;
+        dir = Vector3.Normalize(dir);
+
+        GameObject bullet = GameObject.Instantiate(Bullet, transform.position, new Quaternion(0, 0, 0, 0));
+        bullet.GetComponent<EnemyBullet>().MoveDir = dir;
+    }
+
+    //仮の空気壁
+    private void OnCollisionEnter(Collision collision)
+    {
+        if(collision.gameObject.tag=="Wall")
+        {
+            IsLeft = IsLeft ? false : true;
+        }
+    }
+}
+
+ダグム（ガルン生成器）
+public class Dagumu : MonoBehaviour
 {
-{1,	1,	-1,	3,	1,	2,	2,	-1,	3,	1},
-{2,	2,	1,	3,	3,	2,	2,	3,	3,	2},
-{2,	1,	3,	3,	-1,	1,	3,	3,	1,	3},
-{1,	2,	1,	3,	1,	3,	1,	1,	3,	2},
-{1,	2,	1,	1,	3,	-1,	2,	1,	1,	2},
-},
+    public int GarunNum = 3;
+    public float WaitTimeMax=1.0f;
+    private float WaitTime = 0.0f;
 
+    public float CreateTimeInterval = 0.5f;
+    private float CreateTime;
 
+    public GameObject Garun;
+    // Start is called before the first frame update
+    void Start()
+    {
+        CreateTime = CreateTimeInterval;
+    }
+
+    // Update is called once per frame
+    void Update()
+    {      
+        if (WaitTime < WaitTimeMax)
+        {
+            WaitTime += Time.deltaTime;
+            return;
+        }
+
+        CreateTime += Time.deltaTime;
+        if(CreateTime> CreateTimeInterval)
+        {
+            //ガルン生成
+            if(GarunNum>0)
+            {
+                GameObject garun= GameObject.Instantiate(Garun, transform.position, new Quaternion(0, 0, 0, 0));
+                garun.GetComponent<garun>().IsAwayFromDagumu = true;
+                GarunNum--;
+            }
+            CreateTime = 0.0f;
+        }
+    }
+}
+
+ダッカー（青）
+public class Ducker : MonoBehaviour
 {
-{2,	3,	2,	3,	-1,	2,	2,	2,	1,	2},
-{2,	2,	3,	2,	9,	-1,	2,	3,	1,	3},
-{1,	2,	1,	3,	-1,	2,	3,	2,	1,	3},
-{1,	3,	1,	2,	1,	3,	3,	-1,	3,	2},
-{3,	3,	1,	3,	2,	1,	3,	1,	3,	1},
-},
+    enum DuckerRoutine
+    {
+        Entrance,
+        Decide,
+        WalkLeft,
+        WalkRight,
+        WalkLeftQuick,
+        WalkRightQuick,
+        Shoot,
+        Exit
+    }
+
+    public GameObject Player;
+    public GameObject Bullet;
+
+    DuckerRoutine Routine;
+    public bool IsBottom = true;
+    private bool IsLeft = true;
+
+    public float MoveSpeed = 5.0f;
+    public float MoveSpeedQuick = 10.0f;
+
+    public float PosXDiff = 5.0f;
+    public float PosXDiffFar = 8.0f;
+
+    private float TargetPosX;
+
+    public float ShootTimeInterval = 2.0f;
+    private float ShootTime;
+    private bool IsShooted=false;
+
+    public float LifeTime = 15.0f;
+    private float Life = 0.0f;
+    // Start is called before the first frame update
+    void Start()
+    {
+        ShootTime = ShootTimeInterval;
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        Life+= Time.deltaTime;
+        if(Life> LifeTime)
+        {
+            Routine = DuckerRoutine.Exit;
+        }
+        switch (Routine)
+        {
+            case DuckerRoutine.Entrance:
+                entrance();
+                break;
+            case DuckerRoutine.Decide:
+                decide();
+                break;
+            case DuckerRoutine.WalkLeft:
+                walkLeft();
+                break;
+            case DuckerRoutine.WalkLeftQuick:
+                walkLeftQuick();
+                break;
+            case DuckerRoutine.WalkRight:
+                walkRight();
+                break;
+            case DuckerRoutine.WalkRightQuick:
+                walkRightQuick();
+                break;
+            case DuckerRoutine.Shoot:
+                shoot();
+                break;
+            case DuckerRoutine.Exit:
+                exit();
+                break;
+        }
+        if(IsShooted)
+        {
+            ShootTime += Time.deltaTime;
+            if(ShootTime> ShootTimeInterval)
+            {
+                ShootTime = 0.0f;
+                IsShooted = false;
+            }
+        }
+    }
+    private void exit()
+    {
+        this.transform.position += new Vector3(-1, 0, 0) * Time.deltaTime * MoveSpeed;
+    }
+    private void entrance()
+    {
+        this.transform.position += new Vector3(1,0,0) * Time.deltaTime * MoveSpeed;
+        if(this.transform.position.x>-5.0f)
+        {
+            Routine = DuckerRoutine.Shoot;
+        }
+    }
+    private void shoot()
+    {
+        if (IsShooted) return;
+
+        Vector3 ShootDir=Vector3.zero;
+        ShootDir.x = IsLeft ? -1.0f : 1.0f;
+        ShootDir.y = IsBottom ? 1.0f : -1.0f;
+        ShootDir = Vector3.Normalize(ShootDir);
+
+        GameObject bullet = GameObject.Instantiate(Bullet, transform.position, new Quaternion(0, 0, 0, 0));
+        bullet.GetComponent<EnemyBullet>().MoveDir = ShootDir;
+
+        IsShooted = true;
+        Routine = DuckerRoutine.Decide;
+    }
+
+    private void walkLeft()
+    {
+        this.transform.position += new Vector3(-1, 0, 0) * Time.deltaTime * MoveSpeed;
+        if(this.transform.position.x<TargetPosX)
+        {
+            IsLeft = false;
+            Routine = DuckerRoutine.Decide;
+        }
+    }
+
+    private void walkLeftQuick()
+    {
+        this.transform.position += new Vector3(-1, 0, 0) * Time.deltaTime * MoveSpeedQuick;
+        if (this.transform.position.x < TargetPosX)
+        {
+            IsLeft = false;
+            Routine = DuckerRoutine.Decide;
+        }
+    }
+
+    private void walkRight()
+    {
+        this.transform.position += new Vector3(1, 0, 0) * Time.deltaTime * MoveSpeed;
+        if (this.transform.position.x > TargetPosX)
+        {
+            IsLeft = true;
+            Routine = DuckerRoutine.Decide;
+        }
+    }
+
+    private void walkRightQuick()
+    {
+        this.transform.position += new Vector3(1, 0, 0) * Time.deltaTime * MoveSpeedQuick;
+        if (this.transform.position.x > TargetPosX)
+        {
+            IsLeft = true;
+            Routine = DuckerRoutine.Decide;
+        }
+    }
+
+    private void decide()
+    {
+        float PlayerX = Player.transform.position.x;
+        float DuckerX = this.transform.position.x;
+        if(Mathf.Abs(DuckerX- PlayerX)<PosXDiff)
+        {
+            //Duckerは画面の左半分にいる
+            if(DuckerX<0)
+            {
+                //DuckerはPlayerより左
+                if(DuckerX< PlayerX)
+                {
+                    TargetPosX = PlayerX + PosXDiff;
+                    Routine = DuckerRoutine.WalkRightQuick;
+                    return;
+                }
+                //DuckerはPlayerより右
+                else
+                {
+                    TargetPosX = PlayerX + PosXDiff;
+                    Routine = DuckerRoutine.WalkRight;
+                    return;
+                }
+            }
+            //Duckerは画面の右半分にいる
+            else
+            {
+                //DuckerはPlayerより左
+                if (DuckerX < PlayerX)
+                {
+                    TargetPosX = PlayerX - PosXDiff;
+                    Routine = DuckerRoutine.WalkLeft;
+                    return;
+                }
+                //DuckerはPlayerより右
+                else
+                {
+                    TargetPosX = PlayerX - PosXDiff;
+                    Routine = DuckerRoutine.WalkLeftQuick;
+                    return;
+                }
+            }
+        }
+        else if(DuckerX - PlayerX> PosXDiffFar)
+        {
+            TargetPosX = PlayerX + PosXDiff;
+            Routine = DuckerRoutine.WalkLeft;
+            
+        }
+        else if(PlayerX - DuckerX > PosXDiffFar)
+        {
+            TargetPosX = PlayerX - PosXDiff;
+            Routine = DuckerRoutine.WalkRight;
+        }
+        else
+        {
+            Routine = DuckerRoutine.Shoot;
+
+        }
+    }
+}
 
 
+public class EnemyBullet : MonoBehaviour
 {
-{-1,	2,	3,	2,	2,	3,	3,	2,	3,	3},
-{2,	3,	3,	1,	1,	1,	3,	2,	2,	1},
-{2,	2,	3,	3,	-1,	2,	-1,	-1,	3,	2},
-{1,	1,	2,	2,	9,	-1,	2,	3,	1,	1},
-{2,	2,	1,	-1,	-1,	1,	-1,	1,	3,	2},
-},
+    public Vector3 MoveDir { get; set; }
 
+    public float MoveSpeed = 5.0f;
+    // Start is called before the first frame update
+    void Start()
+    {
+        
+    }
 
-{
-{2,	2,	3,	2,	1,	3,	3,	3,	2,	3},
-{1,	2,	3,	-1,	3,	1,	-1,	1,	1,	3},
-{1,	3,	1,	2,	1,	2,	1,	3,	1,	2},
-{1,	2,	1,	1,	1,	2,	3,	1,	1,	1},
-{2,	2,	2,	-1,	1,	3,	3,	3,	2,	2},
-},
+    // Update is called once per frame
+    void Update()
+    {
+        this.transform.position += MoveDir * Time.deltaTime * MoveSpeed;
 
-
-{
-{3,	2,	3,	9,	1,	2,	-1,	2,	2,	3},
-{1,	2,	3,	-1,	2,	1,	3,	3,	3,	2},
-{3,	2,	3,	-1,	2,	2,	-1,	1,	1,	1},
-{1,	1,	1,	2,	3,	3,	3,	2,	3,	2},
-{3,	3,	2,	3,	1,	3,	3,	1,	1,	3},
-},
-
-
-{
-{2,	3,	3,	1,	3,	2,	2,	3,	3,	2},
-{1,	-1,	1,	2,	-1,	3,	1,	2,	1,	3},
-{3,	9,	-1,	1,	1,	3,	3,	2,	1,	2},
-{1,	-1,	2,	3,	2,	3,	3,	1,	3,	1},
-{2,	2,	2,	3,	2,	3,	3,	2,	2,	2},
-},
-
-
-{
-{3,	2,	3,	3,	2,	3,	2,	1,	2,	3},
-{1,	1,	1,	2,	1,	3,	2,	1,	3,	1},
-{-1,	1,	1,	3,	2,	1,	2,	2,	1,	2},
-{2,	1,	1,	-1,	2,	1,	2,	2,	3,	3},
-{1,	2,	-1,	9,	1,	1,	1,	2,	3,	2},
-},
-
-
-{
-{2,	3,	3,	-1,	2,	2,	2,	2,	1,	2},
-{1,	2,	-1,	3,	3,	1,	1,	-1,	1,	3},
-{1,	3,	1,	2,	1,	1,	3,	3,	3,	1},
-{2,	-1,	-1,	3,	-1,	2,	-1,	2,	1,	2},
-{3,	3,	3,	2,	2,	1,	1,	2,	1,	3},
-},
-
-
-{
-{3,	2,	3,	-1,	-1,	2,	2,	1,	1,	3},
-{1,	1,	2,	9,	2,	2,	3,	2,	2,	1},
-{2,	3,	-1,	-1,	1,	3,	1,	1,	3,	1},
-{2,	3,	3,	2,	2,	3,	3,	3,	2,	2},
-{2,	3,	1,	3,	2,	2,	3,	2,	3,	2},
-},
-
-
-{
-{3,	3,	2,	3,	1,	2,	2,	1,	1,	3},
-{1,	2,	1,	-1,	1,	2,	2,	1,	3,	1},
-{1,	1,	2,	2,	3,	3,	-1,	2,	1,	3},
-{1,	3,	1,	2,	-1,	1,	9,	1,	3,	2},
-{3,	3,	3,	3,	1,	1,	-1,	3,	1,	2},
-},
-
-
-{
-{1,	2,	1,	2,	2,	2,	2,	2,	-1,	3},
-{1,	2,	2,	2,	3,	3,	1,	2,	2,	3},
-{3,	2,	3,	3,	1,	2,	1,	1,	2,	3},
-{3,	1,	1,	1,	2,	1,	2,	3,	3,	2},
-{3,	2,	2,	3,	1,	-1,	-1,	-1,	1,	3},
-},
-
-
-{
-{1,	1,	3,	2,	-1,	2,	9,	3,	3,	2},
-{1,	1,	1,	-1,	1,	1,	-1,	2,	2,	1},
-{2,	3,	2,	2,	2,	1,	3,	3,	2,	1},
-{3,	3,	3,	3,	-1,	3,	3,	1,	3,	2},
-{3,	1,	3,	1,	2,	3,	3,	1,	3,	2},
-},
-
-
-{
-{3,	1,	2,	3,	2,	3,	3,	3,	2,	3},
-{3,	-1,	3,	3,	1,	1,	1,	2,	3,	1},
-{3,	9,	1,	2,	2,	-1,	1,	-1,	2,	2},
-{1,	-1,	2,	2,	3,	3,	1,	2,	1,	2},
-{2,	2,	3,	1,	1,	2,	-1,	2,	1,	3},
-},
-
-
-{
-{3,	2,	2,	1,	3,	3,	2,	3,	1,	2},
-{1,	2,	3,	1,	3,	2,	2,	2,	3,	2},
-{2,	1,	1,	1,	3,	3,	3,	2,	2,	3},
-{2,	-1,	2,	3,	1,	2,	1,	3,	1,	1},
-{1,	9,	-1,	3,	3,	2,	3,	3,	3,	1},
-},
-
-
-{
-{1,	-1,	3,	2,	1,	1,	3,	3,	2,	2},
-{1,	3,	2,	3,	1,	2,	3,	1,	1,	3},
-{3,	3,	3,	2,	2,	2,	3,	-1,	3,	2},
-{1,	2,	3,	1,	2,	2,	1,	2,	3,	1},
-{1,	1,	2,	3,	1,	1,	3,	2,	2,	3},
-},
-
-
-{
-{3,	1,	1,	3,	2,	2,	3,	-1,	2,	3},
-{-1,	1,	-1,	3,	1,	1,	1,	9,	3,	3},
-{2,	3,	3,	1,	1,	1,	3,	-1,	2,	1},
-{1,	1,	3,	3,	3,	-1,	1,	1,	2,	2},
-{1,	1,	1,	2,	1,	1,	1,	2,	1,	2},
-},
-
-
-{
-{2,	3,	3,	3,	3,	1,	1,	3,	2,	1},
-{3,	2,	2,	3,	3,	3,	1,	1,	3,	2},
-{3,	1,	-1,	1,	1,	2,	3,	-1,	1,	2},
-{1,	2,	9,	-1,	2,	2,	2,	3,	2,	3},
-{2,	-1,	-1,	-1,	2,	2,	2,	1,	3,	3},
-},
-
-
-{
-{3,	1,	1,	3,	1,	2,	1,	2,	1,	3},
-{2,	1,	3,	3,	3,	3,	1,	3,	2,	2},
-{1,	2,	1,	2,	2,	2,	2,	3,	3,	2},
-{1,	1,	1,	3,	2,	1,	1,	-1,	9,	1},
-{3,	-1,	3,	3,	1,	3,	2,	3,	-1,	1},
-},
+        //补写一个画面外消失处理
+        //敌人的子弹和地形的判定可能要新建filter
+    }
+}
