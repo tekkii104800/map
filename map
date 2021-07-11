@@ -1,19 +1,3 @@
-ルグル：
-·调查一下第一次自由转向有可能不从最近角度开转的bug（优先度低）
-·从开始自由转向开始计时，经过一定时间后不再转向直至飞出屏幕消失
- 在TurnFree的start里打开RuguruBehavior里的一个开关IsStartTurnFree
- 在IsStartTurnFree为true情况下可以开始计时
- 计时超过时开启EndTurnFree开关，以及可走出画面外被删除开关
- 在TurnFree的update开头写当RuguruBehavior.EndTurnFree为true时返回
-·左右边缘出去之后没有影响，上下边缘出去之后坐标穿墙
- 可在走出画面外被删除开关为false的情况下，当超出上下边缘时强制位移Y坐标
-
-
-◎ガルン
-两种类型
-一种完全固定路线型（红色）
-一种蛇行追尾型
-☒绕x轴回旋
 
 ジャンパー
 因为是站在地板上所以要常时追加一个与scroll一样的速度
@@ -23,20 +7,23 @@ x坐标快出屏幕外时折返
 ◎最开始的一波：
 不会跳，间隔很长一段时间发射一颗子弹（自机狙？）
 会跳的：
-跳两次后发射一次子弹，总共三颗，中间那颗朝着自机，
+跳两次后发射一次子弹，总共三颗，方向固定（！？
 第二次落地后判断和玩家的左右关系来决定下次朝哪个方向跳
 
 ◎ダグム（ガルン生成器）
-最开始的一个：
+最开始的一个：根据玩家等级生成数量
+暂定为初始3，玩家有加成速度+1，有导弹+1，有特殊子弹+1，有option+1
 生成4个ダグム
 ダグム的动作是垂直往上飞一小段距离，然后往右上飞更小一段距离，然后恢复常态（全都是追尾型）
 
-◎ダグム（ラッシュ生成器）
+ダグム（ラッシュ生成器）
 生成4个ラッシュ
 ラッシュ的动作是垂直上升直到与玩家Y平行然后向左（较高速）
+居然还会发射子弹？？
 
 ディー#01
 固定炮台，每隔一段间隔对着自机发射
+间隔还挺长的
 
 ダッカー
 因为是站在地板上所以要常时追加一个与scroll一样的速度
@@ -47,451 +34,653 @@ x坐标快出屏幕外时折返
 红色：
 从左边走出来（面向忽左忽右），走到画面中央停下，向玩家的左右方向，下（上）45度发射子弹
 待观察。。
+比蓝色发射冷却时间短，移动速度快
 
 
+剩下的task
+
+敌人：
+会跳的jumper								基本完成，寿命还没做，wall的判定待验证
+固定炮台									基本完成，自身旋转函数没装。素材要自己做。在上面的话可能旋转函数会相反
+蓝色ducker实际实装，调整数值						基本完成
+红色ducker（在蓝色的基础上更改入场距离，发射冷却时间，移动速度等）		改数值就可
+发射器的调用player等级来决定数量（在start函数里）	
+rush									基本完成，还剩绕z轴旋转
+陨石上长出来的炮塔								基本完成，还剩做一个专用子弹
+火山口									基本完成，不需要描画
+岩石									基本完成，剩素材
+中boss									基本完成，剩子弹prefab
+
+Respawn系统
+玩家位置归0,0，重新载入后让scroll动
+
+garun的绕z轴旋转可以试试改成uv动画，让宽度最小值不等于0
+
+到达火山口时scroll停止移动，背景也停止移动，背景变红
+
+打掉一个小怪涨100分，30000分时残机+1，保留最高分
+
+爆炸effect
+
+title->游戏开始，屏幕上会显示半秒左右的Game Start
+
+死亡：画面定格（update停止），重载游戏后没有特殊UI
+
+Gameover：画面定格（update停止），显示Game Over，闪几下到Result画面
+
+reset stage时需要reset的东西
+player：各项指标：速度回到初始，mode回到normal，option数量回到0，barrier回到false
+屏幕上已有的enemy和item删除（通过文件夹操作？）
+
+title时reset的东西
+分数 残机 
 
 
-ガルン
-public class garun : MonoBehaviour
+//ジャンプできるジャンパー
+public class JumpJumper : Jumper
 {
-    // Start is called before the first frame update
-    public GameObject Player;
-
-    public bool IsRed = false;
-    public bool IsFixed = false;
-
-    public float MoveSpeed = 5.0f;
-
-    private Vector3 MoveDir;
-
-    private float TurnTimeInterval = 0.5f;
-    private float TurnTime = 0.0f;
-
-    private bool IsUp;
-
-    //ダグム関連
-    public bool IsAwayFromDagumu { get; set; }
-    private float UpTimeInterval = 1.0f;
-    private float RightUpTimeInterval = 1.5f;
-    private float AwayTime = 0.0f;
-    
-    void Start()
+    public enum JumperRoutine
     {
-        if(IsFixed)
-        {
-            IsUp = true;
-            MoveDir = new Vector3(-1.0f, 1.0f, 0.0f);
-            MoveDir = Vector3.Normalize(MoveDir);
-        }
-        else
-        {
-            float PlayerPosY = Player.transform.position.y;
-            float GarunPosY = this.transform.position.y;
-
-            IsUp = PlayerPosY > GarunPosY ? true : false;
-        }
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        if(IsAwayFromDagumu)
-        {
-            AwayTime += Time.deltaTime;
-            if (AwayTime < UpTimeInterval)
-            {
-                this.transform.position += new Vector3(0, 0.5f, 0) * Time.deltaTime * MoveSpeed;
-            }
-            else if(AwayTime < RightUpTimeInterval)
-            {
-                this.transform.position += new Vector3(0.5f, 0.5f, 0) * Time.deltaTime * MoveSpeed;
-            }
-            else
-            {
-                IsAwayFromDagumu = false;
-            }
-            return;
-        }
-        // 固定路線
-        if(IsFixed)
-        {
-            TurnTime += Time.deltaTime;
-            if (TurnTime > TurnTimeInterval)
-            {
-                IsUp = IsUp? false : true;
-                TurnTime = 0.0f;
-                //可消除开关打开
-            }
-        }
-
-        // ホーミング
-        else
-        {
-            TurnTime += Time.deltaTime;
-            if (TurnTime > TurnTimeInterval)
-            {
-                float PlayerPosY = Player.transform.position.y;
-                float GarunPosY = this.transform.position.y;
-                IsUp = PlayerPosY > GarunPosY ? true : false;
-
-                TurnTime = 0.0f;
-                //可消除开关打开
-            }
-
-        }
-
-        if(IsUp)
-        {
-            MoveDir = new Vector3(-1.0f, 0.5f, 0.0f);
-        }
-        else
-        {
-            MoveDir = new Vector3(-1.0f, -0.5f, 0.0f);
-        }
-        MoveDir = Vector3.Normalize(MoveDir);
-
-        this.transform.position += MoveDir * Time.deltaTime * MoveSpeed;
-    }
-}
-
-
-ジャンパー
-public class Jumper : MonoBehaviour
-{
-    public float ShootTimeInterval = 5.0f;
-    private float ShootTime = 0.0f;
-
-    public GameObject Player;
-    public GameObject Bullet;
-
-    public bool IsLeft = true;
-
-    private Vector3 MoveDir;
-
-    public float MoveSpeed = 5.0f;
-
-    public bool CanJump = false;
-
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        ShootTime += Time.deltaTime;
-        if(ShootTime>ShootTimeInterval)
-        {
-            Shoot();
-            ShootTime = 0.0f;
-        }
-
-        MoveDir = IsLeft ? new Vector3(-1, 0, 0) : new Vector3(1, 0, 0);
-
-        this.transform.position += MoveDir * Time.deltaTime * MoveSpeed;
-    }
-
-    private void Shoot()
-    {
-        Vector3 PlayerPos = Player.transform.position;
-        Vector3 JumperPos = this.transform.position;
-
-        Vector3 dir = PlayerPos - JumperPos;
-        dir = Vector3.Normalize(dir);
-
-        GameObject bullet = GameObject.Instantiate(Bullet, transform.position, new Quaternion(0, 0, 0, 0));
-        bullet.GetComponent<EnemyBullet>().MoveDir = dir;
-    }
-
-    //仮の空気壁
-    private void OnCollisionEnter(Collision collision)
-    {
-        if(collision.gameObject.tag=="Wall")
-        {
-            IsLeft = IsLeft ? false : true;
-        }
-    }
-}
-
-ダグム（ガルン生成器）
-public class Dagumu : MonoBehaviour
-{
-    public int GarunNum = 3;
-    public float WaitTimeMax=1.0f;
-    private float WaitTime = 0.0f;
-
-    public float CreateTimeInterval = 0.5f;
-    private float CreateTime;
-
-    public GameObject Garun;
-    // Start is called before the first frame update
-    void Start()
-    {
-        CreateTime = CreateTimeInterval;
-    }
-
-    // Update is called once per frame
-    void Update()
-    {      
-        if (WaitTime < WaitTimeMax)
-        {
-            WaitTime += Time.deltaTime;
-            return;
-        }
-
-        CreateTime += Time.deltaTime;
-        if(CreateTime> CreateTimeInterval)
-        {
-            //ガルン生成
-            if(GarunNum>0)
-            {
-                GameObject garun= GameObject.Instantiate(Garun, transform.position, new Quaternion(0, 0, 0, 0));
-                garun.GetComponent<garun>().IsAwayFromDagumu = true;
-                GarunNum--;
-            }
-            CreateTime = 0.0f;
-        }
-    }
-}
-
-ダッカー（青）
-public class Ducker : MonoBehaviour
-{
-    enum DuckerRoutine
-    {
-        Entrance,
         Decide,
-        WalkLeft,
-        WalkRight,
-        WalkLeftQuick,
-        WalkRightQuick,
+        Jump, 
+        Fall,
         Shoot,
         Exit
     }
 
-    public GameObject Player;
-    public GameObject Bullet;
+    enum JumpNum
+    {
+        Big,
+        Small1,
+        Small2,
+    }
 
-    DuckerRoutine Routine;
-    public bool IsBottom = true;
-    private bool IsLeft = true;
+    public float BigJumpSpeed = 3;
+    public float SmallJumpSpeed = 3;
+    public float Gravity = 0.098f;
 
-    public float MoveSpeed = 5.0f;
-    public float MoveSpeedQuick = 10.0f;
+    private JumperRoutine Routine;
+    private JumpNum JumpTimes;
 
-    public float PosXDiff = 5.0f;
-    public float PosXDiffFar = 8.0f;
+    private float SpeedY = 0.0f;
+    public bool IsGround;
 
-    private float TargetPosX;
+    public float GroundLine = -5.0f;
 
-    public float ShootTimeInterval = 2.0f;
-    private float ShootTime;
-    private bool IsShooted=false;
+    public float ShootRoutineTimeMax = 0.5f;
+    private float ShootRoutineTime = 0.0f;
 
-    public float LifeTime = 15.0f;
-    private float Life = 0.0f;
     // Start is called before the first frame update
     void Start()
     {
-        ShootTime = ShootTimeInterval;
+        Routine = JumperRoutine.Jump;
+        JumpTimes = JumpNum.Big;
+        IsGround = true;
     }
 
     // Update is called once per frame
     void Update()
     {
-        Life+= Time.deltaTime;
-        if(Life> LifeTime)
-        {
-            Routine = DuckerRoutine.Exit;
-        }
+        //一定寿命后开启可消除开关
         switch (Routine)
         {
-            case DuckerRoutine.Entrance:
-                entrance();
+            case JumperRoutine.Jump:
+                jump();
                 break;
-            case DuckerRoutine.Decide:
-                decide();
+            case JumperRoutine.Fall:
+                fall();
                 break;
-            case DuckerRoutine.WalkLeft:
-                walkLeft();
-                break;
-            case DuckerRoutine.WalkLeftQuick:
-                walkLeftQuick();
-                break;
-            case DuckerRoutine.WalkRight:
-                walkRight();
-                break;
-            case DuckerRoutine.WalkRightQuick:
-                walkRightQuick();
-                break;
-            case DuckerRoutine.Shoot:
+            case JumperRoutine.Shoot:
                 shoot();
                 break;
-            case DuckerRoutine.Exit:
-                exit();
+            case JumperRoutine.Decide:
+                decide();
                 break;
         }
-        if(IsShooted)
+
+        if(Routine == JumperRoutine.Fall)
         {
-            ShootTime += Time.deltaTime;
-            if(ShootTime> ShootTimeInterval)
+            SpeedY -= Gravity;
+        }
+        
+
+        MoveDir = IsLeft ? new Vector3(-1, 0, 0) : new Vector3(1, 0, 0);
+
+        if(Routine!=JumperRoutine.Shoot)
+        {
+            this.transform.position += MoveDir * 0.016f * MoveSpeed;
+            this.transform.position += new Vector3(-1, 0, 0) * 0.016f * ScrollSpeed;
+            this.transform.position += new Vector3(0, 1, 0) * 0.016f * SpeedY;
+        }
+    }
+
+    private void LateUpdate()
+    {
+        if (this.transform.position.y < GroundLine)
+        {
+            Vector3 pos = this.transform.position;
+            pos.y = GroundLine;
+            this.transform.position = pos;
+
+            SpeedY = 0.0f;
+            IsGround = true;
+        }
+    }
+
+    private void jump()
+    {
+        float JumpSpeed = 0.0f;
+        switch(JumpTimes)
+        {
+            case JumpNum.Big:
+                JumpSpeed = BigJumpSpeed;
+                break;
+            case JumpNum.Small1:
+            case JumpNum.Small2:
+                JumpSpeed = SmallJumpSpeed;
+                break;
+        }
+        SpeedY += JumpSpeed;
+        IsGround = false;
+        Routine = JumperRoutine.Fall;
+        return;
+    }
+
+    private void fall()
+    {
+        if(IsGround)
+        {
+            switch (JumpTimes)
             {
-                ShootTime = 0.0f;
-                IsShooted = false;
-            }
+                case JumpNum.Big:
+                    JumpTimes = JumpNum.Small1;
+                    Routine = JumperRoutine.Jump;
+                    break;
+                case JumpNum.Small1:
+                    JumpTimes = JumpNum.Small2;
+                    Routine = JumperRoutine.Jump;
+                    break;
+                case JumpNum.Small2:
+                    JumpTimes = JumpNum.Big;
+                    Routine = JumperRoutine.Shoot;
+                    break;
+            }           
         }
     }
-    private void exit()
-    {
-        this.transform.position += new Vector3(-1, 0, 0) * Time.deltaTime * MoveSpeed;
-    }
-    private void entrance()
-    {
-        this.transform.position += new Vector3(1,0,0) * Time.deltaTime * MoveSpeed;
-        if(this.transform.position.x>-5.0f)
-        {
-            Routine = DuckerRoutine.Shoot;
-        }
-    }
+
     private void shoot()
     {
-        if (IsShooted) return;
-
-        Vector3 ShootDir=Vector3.zero;
-        ShootDir.x = IsLeft ? -1.0f : 1.0f;
-        ShootDir.y = IsBottom ? 1.0f : -1.0f;
-        ShootDir = Vector3.Normalize(ShootDir);
-
-        GameObject bullet = GameObject.Instantiate(Bullet, transform.position, new Quaternion(0, 0, 0, 0));
-        bullet.GetComponent<EnemyBullet>().MoveDir = ShootDir;
-
-        IsShooted = true;
-        Routine = DuckerRoutine.Decide;
-    }
-
-    private void walkLeft()
-    {
-        this.transform.position += new Vector3(-1, 0, 0) * Time.deltaTime * MoveSpeed;
-        if(this.transform.position.x<TargetPosX)
+        if(ShootRoutineTime==0.0f)
         {
-            IsLeft = false;
-            Routine = DuckerRoutine.Decide;
+            Vector3[] dir=new Vector3[3];
+            dir[0] = new Vector3(-0.25f, 1.0f, 0);
+            dir[1] = new Vector3(-1.0f, 0.5f, 0);
+            dir[2] = new Vector3(0.5f, 1.0f, 0);
+
+            for (int i = 0; i < 3; i++)
+            {
+                GameObject bullet = GameObject.Instantiate(Bullet, transform.position, new Quaternion(0, 0, 0, 0));
+                bullet.GetComponent<EnemyBullet>().MoveDir = Vector3.Normalize(dir[i]);
+            }
+            
         }
-    }
 
-    private void walkLeftQuick()
-    {
-        this.transform.position += new Vector3(-1, 0, 0) * Time.deltaTime * MoveSpeedQuick;
-        if (this.transform.position.x < TargetPosX)
+        ShootRoutineTime += Time.deltaTime;
+        if (ShootRoutineTime > ShootRoutineTimeMax)
         {
-            IsLeft = false;
-            Routine = DuckerRoutine.Decide;
-        }
-    }
 
-    private void walkRight()
-    {
-        this.transform.position += new Vector3(1, 0, 0) * Time.deltaTime * MoveSpeed;
-        if (this.transform.position.x > TargetPosX)
-        {
-            IsLeft = true;
-            Routine = DuckerRoutine.Decide;
-        }
-    }
-
-    private void walkRightQuick()
-    {
-        this.transform.position += new Vector3(1, 0, 0) * Time.deltaTime * MoveSpeedQuick;
-        if (this.transform.position.x > TargetPosX)
-        {
-            IsLeft = true;
-            Routine = DuckerRoutine.Decide;
+            ShootRoutineTime = 0.0f;
+            Routine = JumperRoutine.Decide;
         }
     }
 
     private void decide()
     {
         float PlayerX = Player.transform.position.x;
-        float DuckerX = this.transform.position.x;
-        if(Mathf.Abs(DuckerX- PlayerX)<PosXDiff)
+        float JumperX = this.transform.position.x;
+
+        if(PlayerX< JumperX)
         {
-            //Duckerは画面の左半分にいる
-            if(DuckerX<0)
-            {
-                //DuckerはPlayerより左
-                if(DuckerX< PlayerX)
-                {
-                    TargetPosX = PlayerX + PosXDiff;
-                    Routine = DuckerRoutine.WalkRightQuick;
-                    return;
-                }
-                //DuckerはPlayerより右
-                else
-                {
-                    TargetPosX = PlayerX + PosXDiff;
-                    Routine = DuckerRoutine.WalkRight;
-                    return;
-                }
-            }
-            //Duckerは画面の右半分にいる
-            else
-            {
-                //DuckerはPlayerより左
-                if (DuckerX < PlayerX)
-                {
-                    TargetPosX = PlayerX - PosXDiff;
-                    Routine = DuckerRoutine.WalkLeft;
-                    return;
-                }
-                //DuckerはPlayerより右
-                else
-                {
-                    TargetPosX = PlayerX - PosXDiff;
-                    Routine = DuckerRoutine.WalkLeftQuick;
-                    return;
-                }
-            }
-        }
-        else if(DuckerX - PlayerX> PosXDiffFar)
-        {
-            TargetPosX = PlayerX + PosXDiff;
-            Routine = DuckerRoutine.WalkLeft;
-            
-        }
-        else if(PlayerX - DuckerX > PosXDiffFar)
-        {
-            TargetPosX = PlayerX - PosXDiff;
-            Routine = DuckerRoutine.WalkRight;
+            IsLeft = true;
         }
         else
         {
-            Routine = DuckerRoutine.Shoot;
+            IsLeft = false;
+        }
 
+        Routine = JumperRoutine.Jump;
+    }
+
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (collision.gameObject.tag == "Wall")
+        {
+            IsLeft = IsLeft ? false : true;
         }
     }
 }
 
 
-public class EnemyBullet : MonoBehaviour
+//固定砲台
+public class D : MonoBehaviour
 {
-    public Vector3 MoveDir { get; set; }
+    public GameObject Player;
+    public GameObject Bullet;
 
-    public float MoveSpeed = 5.0f;
+    public float ShootTimeInterval = 5.0f;
+    private float ShootTime = 0.0f;
+
+    private Vector3 ShootDir;
+
     // Start is called before the first frame update
     void Start()
     {
-        
+        //可删除从一开始就打开
     }
 
     // Update is called once per frame
     void Update()
     {
-        this.transform.position += MoveDir * Time.deltaTime * MoveSpeed;
+        
+        Vector3 PlayerPos = Player.transform.position;
+        Vector3 JumperPos = this.transform.position;
 
-        //补写一个画面外消失处理
-        //敌人的子弹和地形的判定可能要新建filter
+        ShootDir = PlayerPos - JumperPos;
+        ShootDir = Vector3.Normalize(ShootDir);
+
+        //自身旋转函数
+
+        ShootTime += Time.deltaTime;
+        if (ShootTime > ShootTimeInterval)
+        {
+            GameObject bullet = GameObject.Instantiate(Bullet, transform.position, new Quaternion(0, 0, 0, 0));
+            bullet.GetComponent<EnemyBullet>().MoveDir = ShootDir;
+            ShootTime = 0.0f;
+        }
     }
 }
+
+//ラッシュ
+public class Rush : MonoBehaviour
+{
+    public GameObject Player;
+    public GameObject Bullet;
+
+    public float MoveSpeed = 5.0f;
+
+    private bool IsSameHeight = false;
+    public float PosYDiff = 0.5f;
+
+    public float ShootTimeInterval = 2.0f;
+    private float ShootTime = 0.0f;
+
+    // Start is called before the first frame update
+    void Start()
+    {
+        //可删除从一开始就打开
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        
+        if(!IsSameHeight)
+        {
+            float PlayerPosY = Player.transform.position.y;
+            float RushPosY = this.transform.position.y;
+
+            if(RushPosY < PlayerPosY - PosYDiff)
+            {
+                this.transform.position += new Vector3(0, 1, 0) * Time.deltaTime * MoveSpeed;
+            }
+            else if(RushPosY > PlayerPosY + PosYDiff)
+            {
+                this.transform.position += new Vector3(0, -1, 0) * Time.deltaTime * MoveSpeed;
+            }
+            else
+            {
+                IsSameHeight = true;
+            }
+        }
+
+        else
+        {
+            Vector3 PlayerPos = Player.transform.position;
+            Vector3 RushPos = this.transform.position;
+
+            Vector3 dir = PlayerPos - RushPos;
+            dir = Vector3.Normalize(dir);
+
+            ShootTime += Time.deltaTime;
+            if (ShootTime > ShootTimeInterval)
+            {
+                GameObject bullet = GameObject.Instantiate(Bullet, transform.position, new Quaternion(0, 0, 0, 0));
+                bullet.GetComponent<EnemyBullet>().MoveDir = dir;
+                ShootTime = 0.0f;
+            }
+            this.transform.position += new Vector3(-1, 0, 0) * Time.deltaTime * MoveSpeed;
+        }
+
+
+
+    }
+}
+
+//砲塔
+public class Turrent : MonoBehaviour
+{
+    public GameObject Bullet;
+
+    public float ShootTimeInterval = 5.0f;
+    private float ShootTime = 0.0f;
+
+    // Start is called before the first frame update
+    void Start()
+    {
+        //可删除从一开始就打开
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+       
+        ShootTime += Time.deltaTime;
+        if (ShootTime > ShootTimeInterval)
+        {
+            GameObject bullet = GameObject.Instantiate(Bullet, transform.position, new Quaternion(0, 0, 0, 0));
+            bullet.GetComponent<EnemyBullet>().MoveDir = new Vector3(-1,0,0);
+            ShootTime = 0.0f;
+        }
+    }
+}
+
+//火山
+public class Volcano : MonoBehaviour
+{
+    public GameObject Rock;
+
+    public float ShootTimeInterval = 0.5f;
+    private float ShootTime = 0.0f;
+    public float AngleMax = 150.0f;
+    public float AngleMin = 30.0f;
+    public bool IsShooting { get; set; }
+    // Start is called before the first frame update
+    void Start()
+    {
+        IsShooting = true;
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        if(IsShooting)
+        {
+            ShootTime += Time.deltaTime;
+            if (ShootTime > ShootTimeInterval)
+            {
+                GameObject rock = GameObject.Instantiate(Rock, transform.position, new Quaternion(0, 0, 0, 0));
+                float angle = Random.Range(AngleMin, AngleMax);
+                rock.GetComponent<Rock>().CreateDir = new Vector3(Mathf.Cos(Mathf.Deg2Rad * angle), Mathf.Sin(Mathf.Deg2Rad * angle), 0);
+                ShootTime = 0.0f;
+            }              
+        }
+    }
+}
+
+//岩
+public class Rock : MonoBehaviour
+{
+    //是继承了enemy的类
+    public Vector3 CreateDir { get; set; }
+
+    public float CreateSpeed = 10.0f;
+
+    public float Gravity = 1.0f;
+
+    private Vector3 Speed=Vector3.zero;
+
+    // Start is called before the first frame update
+    void Start()
+    {
+        //可删除开关一开始就打开
+        Speed = CreateDir * CreateSpeed;
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        Speed += new Vector3(0, -1, 0)  * Gravity;
+
+        transform.position += Speed * Time.deltaTime;
+    }
+}
+
+//ボス
+public class Boss : MonoBehaviour
+{
+    enum BossRoutine
+    {
+        Entrance,
+        TopToMiddle,
+        MiddleToBottom,
+        BottomToMiddle,
+        MiddleToTop,
+    }
+
+    public GameObject Bullet;
+
+    public float TopPosY;
+    public float MiddlePosY;
+    public float BottomPosY;
+    public float RightPosX;
+
+    public float MoveSpeed = 5.0f;
+
+    private BossRoutine Routine;
+
+    public float ShootWaitTimeMax = 0.5f;
+    private float ShootWaitTime = 0.0f;
+    // Start is called before the first frame update
+    void Start()
+    {
+        Routine = BossRoutine.Entrance;
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        switch (Routine)
+        {
+            case BossRoutine.Entrance:
+                entrance();
+                break;
+            case BossRoutine.TopToMiddle:
+                topToMiddel();
+                break;
+            case BossRoutine.MiddleToBottom:
+                middleToBottom();
+                break;
+            case BossRoutine.BottomToMiddle:
+                bottomToMiddle();
+                break;
+            case BossRoutine.MiddleToTop:
+                middleToTop();
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void entrance()
+    {
+        if (this.transform.position.y < MiddlePosY)
+        {
+            this.transform.position += new Vector3(0, 1, 0) * Time.deltaTime * MoveSpeed;
+        }
+        else if(this.transform.position.x<RightPosX)
+        {
+            this.transform.position += new Vector3(1, 0, 0) * Time.deltaTime * MoveSpeed;
+        }
+        else if(this.transform.position.y < TopPosY)
+        {
+            this.transform.position += new Vector3(0, 1, 0) * Time.deltaTime * MoveSpeed;
+        }
+        else
+        {
+            if(ShootWaitTime == 0.0f)
+            {
+                shoot();
+            }
+            ShootWaitTime += Time.deltaTime;
+            if(ShootWaitTime > ShootWaitTimeMax)
+            {
+                ShootWaitTime = 0.0f;
+                Routine = BossRoutine.TopToMiddle;
+            }            
+        }
+    }
+
+    private void topToMiddel()
+    {
+        if(this.transform.position.y > MiddlePosY)
+        {
+            this.transform.position += new Vector3(0, -1, 0) * Time.deltaTime * MoveSpeed;
+        }
+        else
+        {
+            if (ShootWaitTime == 0.0f)
+            {
+                shoot();
+            }
+            ShootWaitTime += Time.deltaTime;
+            if (ShootWaitTime > ShootWaitTimeMax)
+            {
+                ShootWaitTime = 0.0f;
+                Routine = BossRoutine.MiddleToBottom;
+            }
+        }
+    }
+
+    private void middleToBottom()
+    {
+        if (this.transform.position.y > BottomPosY)
+        {
+            this.transform.position += new Vector3(0, -1, 0) * Time.deltaTime * MoveSpeed;
+        }
+        else
+        {
+            if (ShootWaitTime == 0.0f)
+            {
+                shoot();
+            }
+            ShootWaitTime += Time.deltaTime;
+            if (ShootWaitTime > ShootWaitTimeMax)
+            {
+                ShootWaitTime = 0.0f;
+                Routine = BossRoutine.BottomToMiddle;
+            }
+        }
+    }
+
+    private void bottomToMiddle()
+    {
+        if (this.transform.position.y < MiddlePosY)
+        {
+            this.transform.position += new Vector3(0, 1, 0) * Time.deltaTime * MoveSpeed;
+        }
+        else
+        {
+            if (ShootWaitTime == 0.0f)
+            {
+                shoot();
+            }
+            ShootWaitTime += Time.deltaTime;
+            if (ShootWaitTime > ShootWaitTimeMax)
+            {
+                ShootWaitTime = 0.0f;
+                Routine = BossRoutine.MiddleToTop;
+            }
+        }
+    }
+
+    private void middleToTop()
+    {
+        if (this.transform.position.y < TopPosY)
+        {
+            this.transform.position += new Vector3(0, 1, 0) * Time.deltaTime * MoveSpeed;
+        }
+        else
+        {
+            if (ShootWaitTime == 0.0f)
+            {
+                shoot();
+            }
+            ShootWaitTime += Time.deltaTime;
+            if (ShootWaitTime > ShootWaitTimeMax)
+            {
+                ShootWaitTime = 0.0f;
+                Routine = BossRoutine.TopToMiddle;
+            }
+        }
+    }
+
+    private void shoot()
+    {
+        Vector3[] BulletPosDiff = new Vector3[4];
+        BulletPosDiff[0] = new Vector3(-1.3f, 1.4f, 0.0f);
+        BulletPosDiff[1] = new Vector3(-2.4f, 0.6f, 0.0f);
+        BulletPosDiff[2] = new Vector3(-2.4f, -0.6f, 0.0f);
+        BulletPosDiff[3] = new Vector3(-1.3f, -1.4f, 0.0f);
+
+        for (int i = 0; i < 4; i++)
+        {
+            GameObject bullet = GameObject.Instantiate(Bullet, transform.position+ BulletPosDiff[i], new Quaternion(0, 0, 0, 0));
+            bullet.GetComponent<EnemyBullet>().MoveDir = new Vector3(-1, 0, 0);
+        }     
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+It takes two
+5点
+
+「It takes two」は今年3月に発売した、2人協力プレイ専用のアクションアドベンチャーゲームです。
+先月友人とクリアしましたのでレポを書かせてもらいます。
+
+個人的に5点をつける理由は以下となります。
+①遊び方のバリエーション
+大まかなジャンルではアクションアドベンチャーゲームに入りますが、ステージごとに遊び方が違くて、クリアするまで全く飽きることなく遊べることができます。
+少しだけ例を上げると、とある宇宙空間をテーマにしたステージでは、2人の主人公がそれぞれ「拡大縮小」「重力改変」の能力を持ちます。いかに特殊能力を使ってパズルを解けるのがこのステージの肝になります。
+また別の魔法の城のステージでは、主人公が「炎」と「氷」の魔法使いになり、レトロRPGゲームのように城中に探検できます。
+こうしてステージごとに遊び方や操作感を一変することによって、常にプレイヤーに新しい体験を与えていることが、個人的にこのゲームの一番のプラスポイントだと思います。
+②ストーリー
+設定上2人の主人公は離婚間際の夫婦で、親に離婚して欲しくない娘の魔法によって人形にされ不思議な世界に閉じ込められました。最初は元の世界に戻るためいやいやながら相手と協力するが、物語が進むにつれて口喧嘩の回数が段々減って、忘れた愛を思い出すという割と王道的な展開です。
+しかし、「お互いへの愛を再認識」の結果を導き出すきっかけは、多くの方々が予想した「2人は昔の恋愛感覚を思い出す」ではなく、「お互いの夢を支えるようになる」であります。妻は庭師になりたい夫の作った庭を心の底から立派だと思えるようになり、そんな彼女も万人の前に歌ってる時、夫の目に何よりも輝いて映されている。婚姻/恋愛関係を語る前に、人の独立性を重視している考えに非常に賛同します。
