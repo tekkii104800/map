@@ -75,6 +75,10 @@ player：各项指标：速度回到初始，mode回到normal，option数量回�
 title时reset的东西
 分数 残机 
 
+存档点：开头，
+快到陆地的时候，开始后有一红二蓝garun，然后是两只红固定飞出来
+在断裂小山前，开始后是两只红固定，三只蓝固定（？）
+一蓝一红同时飞出来，后面跟着一红二蓝，地上出现炮
 
 //ジャンプできるジャンパー
 public class JumpJumper : Jumper
