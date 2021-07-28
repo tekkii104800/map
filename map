@@ -1,32 +1,95 @@
-移动brushup
-·跑步时因为是通过左摇杆方向决定现在方向的，所以当左摇杆方向瞬间变化值过大时人物会出现不自然的瞬间转向
- 解决方法是给人物设定旋转速度的固定值，当左摇杆方向StickDir和自身方向PlayerDir夹角超过一个很小的值时
- 通过外积计算出人物应该左转还是右转，然后往那个方向进行固定旋转速度的旋转，直至PlayerDir与StickDir夹角小于一个很小的值
+public class LookAtPos : MonoBehaviour
+{
+    public GameObject CameraPos;
 
- 固定速度：现在是根据两向量的差向量进行计算，但是这样无法保证匀速，因此之后要改为通过夹角计算
+    private float MoveSpeed = 0.0f;
+    private Vector3 MoveDir=Vector3.zero;
+    private float MaxMoveSpeed=8.0f;
+    private float MoveAcc=0.2f;
+    private Vector3 TargetDir;
 
- 跟随相机旋转模式下，松开左摇杆会渐渐转回到相机方向
+    public enum LookAtPosRoutine
+    {
+        Stop,
+        Start,
+        Away,
+        FirstAttack,
+        OverTake,
+    }
 
- 瞄准时转相机，脚也是会动的
+    public LookAtPosRoutine routine;
+    // Start is called before the first frame update
+    void Start()
+    {
+        this.transform.position = CameraPos.gameObject.transform.position;
+    }
 
-·人物跟随相机旋转而旋转时，换一个脚会动的animation
- 但是这样的animation一般自带旋转情报，所以写法和人物不跟随相机旋转时的转身可能比较类似，而且要把animation的loop打开
+    // Update is called once per frame
+    void Update()
+    {
+        var TargetPos = CameraPos.gameObject.transform.position;
+        var LookAtPos = gameObject.transform.position;
 
-·人物跟随相机旋转时不要完全和相机同步，而是有个追赶的感觉
+        TargetDir = TargetPos - LookAtPos;
 
-重力
+        //MoveSpeed = Mathf.Min(MaxMoveSpeed, MoveSpeed + MoveAcc);
+        //MoveDir = TargetDir.normalized * MoveSpeed;
+        //this.transform.position += Time.deltaTime * MoveDir;
 
-角色状态
-·跟随相机旋转or不跟随相机旋转
- 后者只出现在大厅内，进入走廊后基本都是跟随相机旋转了
-·拿着枪or拿着手电or两者都拿着
-·HP满点100点，用uint管理
- 同时在playermanager里实时判断是属于Fine，FineMinus，Caution还是Danger（方便状态管理）
-Fine:100-80
-FineMinus:80-60
-Caution:60-30
-Danger:30-0
+        switch (routine)
+        {
+            case LookAtPosRoutine.Stop:
+                this.transform.position = TargetPos;
+                MoveSpeed = 0.0f;
+                if (TargetDir.magnitude > 0.1f)
+                {
+                    routine = LookAtPosRoutine.Start;
+                }
+                break;
+            case LookAtPosRoutine.Start:
+                MoveSpeed = Mathf.Min(MaxMoveSpeed, MoveSpeed + MoveAcc);
+                MoveDir = TargetDir.normalized * MoveSpeed;
+                this.transform.position += Time.deltaTime * MoveDir;
+                if (TargetDir.magnitude > 2.0f)
+                {
+                    routine = LookAtPosRoutine.Away;
+                }
+                if (TargetDir.magnitude < 0.1f)
+                {
+                    routine = LookAtPosRoutine.Stop;
+                }
+                break;
+            case LookAtPosRoutine.Away:
+                MoveSpeed = Mathf.Min(MaxMoveSpeed, MoveSpeed + MoveAcc);
+                MoveDir = TargetDir.normalized * MoveSpeed;
+                this.transform.position += Time.deltaTime * MoveDir;
+                if (TargetDir.magnitude < 0.2f)
+                {
+                    routine = LookAtPosRoutine.FirstAttack;
+                }
+                break;
+            case LookAtPosRoutine.FirstAttack:
+                MoveSpeed = Mathf.Max(-MaxMoveSpeed, MoveSpeed - MoveAcc * 4.0f);
+                this.transform.position += Time.deltaTime * MoveDir;
+                if (TargetDir.magnitude > 0.2f)
+                {
+                    routine = LookAtPosRoutine.OverTake;
+                }
+                break;
+            case LookAtPosRoutine.OverTake:
+                MoveSpeed = Mathf.Max(-MaxMoveSpeed, MoveSpeed - MoveAcc * 4.0f);
+                MoveDir = -TargetDir.normalized * MoveSpeed;
+                this.transform.position += Time.deltaTime * MoveDir;
+                if (TargetDir.magnitude < 0.2f)
+                {
+                    routine = LookAtPosRoutine.Stop;
+                }
+                break;
+            default:
+                break;
+        }
 
-瞄准
-从相机的坐标往相机的CameraDir射出一条Ray，碰撞到的第一个物体的坐标就是瞄准的点
-给角色的r_weapon的joint设置IK，方向朝着那个点的方向 
+
+
+    }
+}
