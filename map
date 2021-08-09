@@ -1,95 +1,12 @@
-public class LookAtPos : MonoBehaviour
-{
-    public GameObject CameraPos;
+JUST　DANCE２０２１
 
-    private float MoveSpeed = 0.0f;
-    private Vector3 MoveDir=Vector3.zero;
-    private float MaxMoveSpeed=8.0f;
-    private float MoveAcc=0.2f;
-    private Vector3 TargetDir;
-
-    public enum LookAtPosRoutine
-    {
-        Stop,
-        Start,
-        Away,
-        FirstAttack,
-        OverTake,
-    }
-
-    public LookAtPosRoutine routine;
-    // Start is called before the first frame update
-    void Start()
-    {
-        this.transform.position = CameraPos.gameObject.transform.position;
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        var TargetPos = CameraPos.gameObject.transform.position;
-        var LookAtPos = gameObject.transform.position;
-
-        TargetDir = TargetPos - LookAtPos;
-
-        //MoveSpeed = Mathf.Min(MaxMoveSpeed, MoveSpeed + MoveAcc);
-        //MoveDir = TargetDir.normalized * MoveSpeed;
-        //this.transform.position += Time.deltaTime * MoveDir;
-
-        switch (routine)
-        {
-            case LookAtPosRoutine.Stop:
-                this.transform.position = TargetPos;
-                MoveSpeed = 0.0f;
-                if (TargetDir.magnitude > 0.1f)
-                {
-                    routine = LookAtPosRoutine.Start;
-                }
-                break;
-            case LookAtPosRoutine.Start:
-                MoveSpeed = Mathf.Min(MaxMoveSpeed, MoveSpeed + MoveAcc);
-                MoveDir = TargetDir.normalized * MoveSpeed;
-                this.transform.position += Time.deltaTime * MoveDir;
-                if (TargetDir.magnitude > 2.0f)
-                {
-                    routine = LookAtPosRoutine.Away;
-                }
-                if (TargetDir.magnitude < 0.1f)
-                {
-                    routine = LookAtPosRoutine.Stop;
-                }
-                break;
-            case LookAtPosRoutine.Away:
-                MoveSpeed = Mathf.Min(MaxMoveSpeed, MoveSpeed + MoveAcc);
-                MoveDir = TargetDir.normalized * MoveSpeed;
-                this.transform.position += Time.deltaTime * MoveDir;
-                if (TargetDir.magnitude < 0.2f)
-                {
-                    routine = LookAtPosRoutine.FirstAttack;
-                }
-                break;
-            case LookAtPosRoutine.FirstAttack:
-                MoveSpeed = Mathf.Max(-MaxMoveSpeed, MoveSpeed - MoveAcc * 4.0f);
-                this.transform.position += Time.deltaTime * MoveDir;
-                if (TargetDir.magnitude > 0.2f)
-                {
-                    routine = LookAtPosRoutine.OverTake;
-                }
-                break;
-            case LookAtPosRoutine.OverTake:
-                MoveSpeed = Mathf.Max(-MaxMoveSpeed, MoveSpeed - MoveAcc * 4.0f);
-                MoveDir = -TargetDir.normalized * MoveSpeed;
-                this.transform.position += Time.deltaTime * MoveDir;
-                if (TargetDir.magnitude < 0.2f)
-                {
-                    routine = LookAtPosRoutine.Stop;
-                }
-                break;
-            default:
-                break;
-        }
-
-
-
-    }
-}
+良かった点：
+・運動系ゲームの中で一番有酸素トレーニングができるゲームかも。3、4曲を踊るだけでだいぶ汗びしょびしょになる。
+・ダイエット目的なら「トレーニングしている感」がほぼないくらいに楽しくて飽きにくい。
+・ダンスに興味あったが日常生活で触れにくい/わざわざレッスン行きたくない/人の前にダンスするの恥ずかしい人に向いている。
+・全然アマチュアなのにプロダンサーになった気分を味わえられる。
+悪かった点
+・ダンスのジャンル分けが無いところが一番気になる。せめてパワー系とテクニック系を分けてくれたら曲選びやすいと思う。
+・ゲーム画面の右下の「次のモーションを提示する」UIになかなか目線行けない。
+・右手のジョイコンだけで点数判定のせいで下半身の動きにあまり重要視されない気がする。
+・JPOPの曲が少なすぎる。
